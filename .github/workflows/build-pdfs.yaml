@@ -1,0 +1,59 @@
+name: Build LaTeX PDFs
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.set-projects.outputs.matrix }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Generate matrix from changed projects
+        id: set-projects
+        run: |
+          python scripts/detect_changed_projects.py
+        env:
+          GITHUB_OUTPUT: ${{ github.output }}
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: ${{ fromJson(needs.prepare.outputs.projects) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone LaTeX repo
+        run: |
+          git clone --depth 1 --branch publish \
+            https://github.com/dnhansen/${{ matrix.project }} \
+            tmp/${{ matrix.project }}
+
+      - name: Build PDF
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          working_directory: tmp/${{ matrix.project }}
+
+      - name: Copy PDF to final location
+        run: |
+          mkdir -p projects/${{ matrix.project }}
+          cp tmp/${{ matrix.project }}/main.pdf projects/${{ matrix.project }}/main.pdf
+
+      - name: Commit and push if PDF changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add /projects/${{ matrix.project }}/*.pdf
+          git commit -m "Update PDF for ${{ matrix.project }}" || echo "No changes"
+          git push
