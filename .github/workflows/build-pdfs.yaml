@@ -8,8 +8,6 @@ on:
 jobs:
   prepare:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     outputs:
       projects: ${{ steps.set-projects.outputs.matrix }}
     steps:
@@ -28,6 +26,8 @@ jobs:
 
   build:
     needs: prepare
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     strategy:
       matrix:
